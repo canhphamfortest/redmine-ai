@@ -28,7 +28,7 @@ module CustomFeatures
         # Nếu AI không tạo được (rỗng), raise error
         if checklist.empty?
           Rails.logger.error "[ChecklistGenerator] AI generation failed, checklist is empty"
-          raise CustomFeatures::ChecklistGenerationError, 'Không thể tạo checklist. AI không trả về kết quả hoặc không thể parse checklist từ response.'
+          raise CustomFeatures::Errors::ChecklistGenerationError, Constants::ERROR_CHECKLIST_GENERATION_FAILED
         end
 
         checklist

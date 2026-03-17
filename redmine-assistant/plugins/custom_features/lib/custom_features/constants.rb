@@ -115,6 +115,8 @@ module CustomFeatures
     
     # Pattern để loại bỏ keywords không cần thiết ở đầu task text
     CHECKLIST_KEYWORD_PATTERN = /^(checklist|task|item|công việc):?\s*/i
+
+    ERROR_CHECKLIST_GENERATION_FAILED = 'Không thể tạo checklist. AI không trả về kết quả hoặc không thể parse checklist từ response.'
   end
 end
 

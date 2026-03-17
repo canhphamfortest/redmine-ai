@@ -48,7 +48,7 @@ module CustomFeatures
         else
           render_error("#{Constants::ERROR_SAVE_FAILED}: #{@issue.errors.full_messages.join(', ')}", :unprocessable_entity)
         end
-      rescue CustomFeatures::ChecklistGenerationError => e
+      rescue CustomFeatures::Errors::ChecklistGenerationError => e
         Rails.logger.error "Checklist generation failed: #{e.message}"
         render_error(e.message, :unprocessable_entity)
       rescue CustomFeatures::SearchClient::SearchError => e
