@@ -1,0 +1,47 @@
+<%= form_tag({ controller: 'settings', action: 'plugin', id: 'custom_features' }, method: :post, class: 'tabular') do %>
+  <div class="box">
+    <h3>AI Backend Configuration</h3>
+    
+    <p>
+      <%= label_tag 'settings[rag_api_base_url]', 'RAG API Base URL' %>
+      <%= text_field_tag 'settings[rag_api_base_url]', @settings['rag_api_base_url'], 
+          size: 60, 
+          placeholder: 'http://backend:8000',
+          class: 'form-control' %>
+      <em class="info">URL của AI backend service (ví dụ: http://backend:8000)</em>
+    </p>
+    
+    <p>
+      <strong>Thứ tự ưu tiên cấu hình:</strong><br/>
+      <ol>
+        <li>Plugin Settings (trang này)</li>
+        <li>Environment variable: RAG_SEARCH_API_BASE</li>
+        <li>Environment variable: RAG_BACKEND_URL</li>
+        <li>Default: http://backend:8000</li>
+      </ol>
+    </p>
+
+    <hr/>
+
+    <h3>Projects được bật tính năng AI</h3>
+    <p>
+      <%= label_tag 'settings[enabled_projects][]', 'Chọn project' %><br/>
+      <% project_options = Project.order(:name).map do |project|
+           display_name = project.parent ? project.parent.name : project.name
+           value = project.parent ? project.parent.identifier : project.identifier
+           [display_name, value]
+         end.uniq %>
+      <%= select_tag 'settings[enabled_projects][]',
+          options_for_select(project_options, @settings['enabled_projects']),
+          multiple: true,
+          size: 8,
+          class: 'form-control',
+          style: 'min-width: 260px;' %>
+      <em class="info">Chỉ các project được chọn mới hiển thị Auto Link Related Issues, Create Note with Checklist và AI Search.</em>
+    </p>
+  </div>
+
+  <%= submit_tag 'Save', class: 'btn btn-primary' %>
+<% end %>
+
+

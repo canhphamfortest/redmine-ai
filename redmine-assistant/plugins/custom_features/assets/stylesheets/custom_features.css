@@ -1,0 +1,588 @@
+/* ============================================================
+ * Custom Features Plugin Styles
+ * ============================================================
+ * 
+ * Stylesheet cho Custom Features Plugin
+ * Bao gồm styles cho:
+ * - Related issues section
+ * - Checklist creation buttons
+ * - Search functionality
+ * - AI search UI
+ * ============================================================ */
+
+/* ===== Related Issues Section ===== */
+/* Styles cho custom related issues section */
+.custom-related-issues-section {
+  margin-top: 15px;
+  padding: 15px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.custom-related-issues-section h3 {
+  margin-top: 0;
+  color: #333;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.custom-related-issues-section .custom-button {
+  padding: 6px 12px;
+  background-color: #4a90e2;
+  color: white;
+  text-decoration: none;
+  border-radius: 3px;
+  border: none;
+  cursor: pointer;
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.custom-related-issues-section .custom-button:hover {
+  background-color: #357abd;
+}
+
+.custom-create-draft-note,
+#custom-create-draft-note-btn {
+  padding: 6px 12px;
+  background-color: #28a745;
+  color: white;
+  text-decoration: none;
+  border-radius: 3px;
+  border: 1px solid #28a745;
+  cursor: pointer;
+  display: inline-block;
+  margin-right: 10px;
+  font-weight: normal;
+}
+
+.custom-create-draft-note:hover,
+#custom-create-draft-note-btn:hover {
+  background-color: #218838;
+  border-color: #1e7e34;
+  color: white;
+  text-decoration: none;
+}
+
+.custom-create-draft-note:disabled,
+#custom-create-draft-note-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed !important;
+}
+
+/* ===== Loading Indicators ===== */
+/* Loading indicator cho checklist creation */
+.custom-checklist-loading {
+  display: inline-block;
+  margin-left: 10px;
+  vertical-align: middle;
+  color: #666;
+  font-size: 12px;
+}
+
+.custom-loading-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #f3f3f3;
+  border-top: 2px solid #28a745;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.custom-loading-text {
+  vertical-align: middle;
+  font-size: 12px;
+  color: #666;
+}
+
+/* ===== Button Wrapper ===== */
+/* Wrapper cho button trong phần relations (sau khi được di chuyển bởi JS) */
+#custom-draft-note-button-wrapper {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #ddd;
+  clear: both;
+}
+
+#custom-draft-note-button-wrapper .custom-create-draft-note,
+#custom-draft-note-button-wrapper #custom-create-draft-note-btn {
+  margin-bottom: 5px;
+}
+
+/* ===== Note Section ===== */
+/* Styles cho note section (nếu cần) */
+.custom-note-section {
+  margin-top: 10px;
+  padding: 12px;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+}
+
+.custom-note-section h4 {
+  margin-top: 0;
+  color: #856404;
+  font-size: 13px;
+  font-weight: bold;
+}
+
+.custom-note-button {
+  padding: 6px 12px;
+  background-color: #ffc107;
+  color: #000;
+  text-decoration: none;
+  border-radius: 3px;
+  border: 1px solid #ffc107;
+  cursor: pointer;
+  display: inline-block;
+  margin-right: 10px;
+}
+
+.custom-note-button:hover {
+  background-color: #e0a800;
+  border-color: #d39e00;
+}
+
+/* ===== Search Container ===== */
+/* Styles cho custom search container (legacy, có thể không còn sử dụng) */
+.custom-search-container {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+}
+
+.custom-search-input {
+  flex: 1;
+  padding: 10px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.custom-search-results {
+  margin-top: 20px;
+}
+
+.custom-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.custom-badge-issue {
+  background-color: #4a90e2;
+  color: white;
+}
+
+.custom-badge-project {
+  background-color: #5cb85c;
+  color: white;
+}
+
+.custom-badge-wiki-page {
+  background-color: #f0ad4e;
+  color: white;
+}
+
+/* ===== Search Help ===== */
+/* Help section hiển thị hướng dẫn sử dụng */
+.custom-search-help {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #e7f3ff;
+  border-radius: 4px;
+  border: 1px solid #b3d9ff;
+}
+
+.custom-search-help h3 {
+  margin-top: 0;
+  color: #004085;
+}
+
+.custom-search-help ul {
+  margin-left: 20px;
+  color: #555;
+}
+
+.custom-search-help li {
+  margin-bottom: 5px;
+}
+
+/* ===== Quick Search Box ===== */
+/* Custom quick search box bên cạnh quick-search của Redmine */
+#custom-quick-search {
+  float: right;
+  margin: 20px 10px;
+}
+
+#custom-quick-search form {
+  float: left;
+  margin-right: 3px;
+}
+
+#custom-quick-search label {
+  vertical-align: middle;
+}
+
+#custom-quick-search label a {
+  text-decoration: none;
+}
+
+#custom-quick-search label a:hover {
+  text-decoration: underline;
+}
+
+#custom-quick-search input[type="text"] {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+#custom-quick-search input[type="text"]:focus {
+  outline: 1px solid #2E64FE;
+  outline-offset: -1px;
+}
+
+/* ===== Responsive Styles ===== */
+/* Ẩn custom search trên màn hình nhỏ để tránh cluttered UI */
+@media (max-width: 768px) {
+  #custom-quick-search {
+    display: none;
+  }
+}
+
+/* ============================================================
+ * AI Search UI Styles
+ * ============================================================
+ * 
+ * Styles cho trang AI Search (RAG search)
+ * Sử dụng BEM naming convention (Block__Element--Modifier)
+ * ============================================================ */
+
+/* ===== Search Page Layout ===== */
+.cf-search-page {
+  margin-top: 10px;
+}
+
+.cf-search-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cf-search-page__header h2 {
+  margin: 0;
+}
+
+.cf-search-page__header p {
+  margin: 3px 0 0;
+  color: #666;
+}
+
+/* ===== Search Card ===== */
+/* Card chứa search form */
+.cf-search-card {
+  margin-top: 15px;
+  padding: 20px;
+  background: #fff;
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* ===== Search Form ===== */
+/* Form layout và styling */
+.cf-search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cf-search-form__row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.cf-input-wrapper {
+  flex: 1;
+  min-width: 240px;
+}
+
+.cf-input-wrapper label,
+.cf-search-form__filters label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+
+.cf-search-input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+}
+
+.cf-search-select {
+  width: 100%;
+  font-size: 14px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+  background: white;
+}
+
+.cf-mode-toggle {
+  min-width: 220px;
+}
+
+.cf-mode-toggle__options {
+  display: flex;
+  gap: 8px;
+}
+
+.cf-mode-toggle__options label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+  cursor: pointer;
+  background: #fafafa;
+  font-size: 13px;
+}
+
+.cf-mode-toggle__options label.is-active {
+  border-color: #4a90e2;
+  background: #e8f1ff;
+  color: #215798;
+}
+
+.cf-search-form__filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 16px;
+  align-items: end;
+}
+
+.cf-select,
+.cf-text,
+.cf-number {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d5d5d5;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.cf-search-form__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.cf-primary-btn {
+  padding: 10px 24px;
+  font-weight: bold;
+}
+
+/* ===== Alerts ===== */
+/* Alert messages cho errors và notifications */
+.cf-alert {
+  margin-top: 15px;
+  padding: 12px 15px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+
+.cf-alert--error {
+  border-color: #f5c6cb;
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* ===== Search Help ===== */
+/* Help section cho AI search page */
+.cf-search-help {
+  margin-top: 20px;
+  padding: 20px;
+  background-color: #f2f7ff;
+  border-radius: 6px;
+  border: 1px solid #d6e4ff;
+}
+
+.cf-search-help ul {
+  margin: 10px 0 0 20px;
+}
+
+.cf-search-results {
+  margin-top: 25px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.cf-result-summary {
+  display: flex;
+  gap: 20px;
+  padding: 12px 16px;
+  background: #f9fafb;
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+}
+
+.cf-summary-label {
+  display: block;
+  font-size: 11px;
+  color: #777;
+  text-transform: uppercase;
+}
+
+.cf-ai-answer {
+  border: 1px solid #d7e3ff;
+  background: #f4f7ff;
+  border-radius: 6px;
+}
+
+.cf-ai-answer__header {
+  padding: 10px 14px;
+  border-bottom: 1px dashed #d0dcfb;
+  font-weight: 600;
+  color: #2d4d9c;
+}
+
+.cf-ai-answer__body {
+  padding: 14px;
+  color: #1f1f1f;
+}
+
+.cf-ai-answer__sources {
+  padding: 0 14px 14px;
+  font-size: 13px;
+  color: #444;
+}
+
+.cf-ai-answer__sources ul {
+  margin: 6px 0 0 18px;
+}
+
+/* ===== Result List ===== */
+/* Container cho danh sách retrieved chunks */
+.cf-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cf-result-card {
+  border: 1px solid #e4e4e4;
+  border-radius: 6px;
+  padding: 12px 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+/* ===== Result Card Components ===== */
+/* Header của result card */
+.cf-result-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+
+.cf-result-index {
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+.cf-result-source {
+  font-weight: 600;
+  color: #333;
+}
+
+.cf-badge {
+  margin-left: 8px;
+  padding: 2px 6px;
+  background: #f0f0f0;
+  border-radius: 3px;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+/* ===== Score Badges ===== */
+/* Badge hiển thị similarity score với màu sắc khác nhau */
+.cf-score-badge {
+  font-weight: bold;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.cf-score-badge--high {
+  background: #e2f6ec;
+  color: #0f8a4b;
+}
+
+.cf-score-badge--medium {
+  background: #fff5d9;
+  color: #8f6c00;
+}
+
+.cf-score-badge--low {
+  background: #f1f3f5;
+  color: #4c4c4c;
+}
+
+/* Body của result card - chứa nội dung chunk */
+.cf-result-card__body {
+  color: #2c2c2c;
+  line-height: 1.5;
+}
+
+.cf-result-card__meta {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 12px;
+  color: #555;
+}
+
+/* ===== Context Actions ===== */
+/* Actions trong context menu */
+.cf-context-actions .icon {
+  padding: 6px 10px;
+}
+
+/* ===== Responsive Styles for AI Search ===== */
+/* Mobile-friendly adjustments */
+@media (max-width: 768px) {
+  .cf-search-form__row {
+    flex-direction: column;
+  }
+
+  .cf-result-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+

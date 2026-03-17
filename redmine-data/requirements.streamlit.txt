@@ -1,0 +1,21 @@
+# Streamlit Frontend Requirements (Lightweight)
+# Authentication via Backend API - không cần database dependencies
+# Dự kiến image size: ~400-600MB
+
+# UI Framework
+streamlit==1.32.0
+
+# API Requests (cho gọi backend API)
+requests==2.31.0
+
+# Data Processing (cho Monitor page charts)
+pandas==2.2.1
+numpy==1.26.4
+
+# Visualization (cho Monitor page)
+plotly==5.20.0
+
+# Configuration
+pydantic==2.6.3
+pydantic-settings==2.2.1
+python-dotenv==1.0.1

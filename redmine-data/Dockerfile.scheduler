@@ -1,0 +1,40 @@
+# Lightweight Dockerfile for scheduler service
+# This image is MUCH smaller (~200MB) compared to Dockerfile.backend (~3-4GB)
+# The scheduler only manages cron schedules and calls Backend API for heavy work
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy only scheduler requirements
+COPY requirements.scheduler.txt .
+
+# Install Python dependencies (no heavy ML packages)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.scheduler.txt
+
+# Copy only necessary application code
+# Only need: config, database, models, scheduler, and budget services
+COPY app/__init__.py ./app/
+COPY app/config.py ./app/
+COPY app/database.py ./app/
+COPY app/models.py ./app/
+COPY app/schedulers/ ./app/schedulers/
+COPY app/services/__init__.py ./app/services/
+COPY app/services/budget/ ./app/services/budget/
+
+# Create directories
+RUN mkdir -p /app/.cache
+
+# Clean up
+RUN rm -rf /root/.cache/pip \
+    && rm -rf /tmp/*
+
+CMD ["python", "-m", "app.schedulers.job_scheduler"]
+

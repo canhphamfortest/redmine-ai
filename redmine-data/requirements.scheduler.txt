@@ -1,0 +1,22 @@
+# Lightweight requirements for scheduler service
+# This service only manages cron schedules and calls Backend API
+# Does NOT require heavy ML dependencies (torch, transformers, sentence-transformers)
+
+# Job Scheduling
+APScheduler==3.10.4
+croniter==2.0.1
+
+# Database (for reading job schedules)
+psycopg2-binary==2.9.9
+pgvector==0.2.5
+sqlalchemy==2.0.28
+
+# HTTP Client (for calling Backend API)
+requests==2.31.0
+httpx==0.27.0
+
+# Configuration
+pydantic==2.6.3
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+

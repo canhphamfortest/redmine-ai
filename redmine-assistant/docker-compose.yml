@@ -1,0 +1,44 @@
+services:
+  redmine:
+    image: redmine:5.1.2-alpine
+    ports:
+      - "8080:3000"
+    environment:
+      REDMINE_DB_MYSQL: db
+      REDMINE_DB_DATABASE: redmine
+      REDMINE_DB_USERNAME: root
+      REDMINE_DB_PASSWORD: rootpass
+      REDMINE_DB_ENCODING: utf8mb4
+    depends_on:
+      - db
+    volumes:
+      - redmine_data:/usr/src/redmine/files
+      - ./src:/usr/src/redmine/init
+      - ./plugins:/usr/src/redmine/plugins
+    networks:
+      - rag-network
+
+  db:
+    image: mysql:8.0
+    # Ép server MySQL dùng utf8mb4 + collation ngay từ đầu
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --skip-character-set-client-handshake=1
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: redmine
+    volumes:
+      - db_data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:3307:3306" 
+    networks:
+      - rag-network
+
+volumes:
+  redmine_data:
+  db_data:
+
+networks:
+  rag-network:
+    external: true

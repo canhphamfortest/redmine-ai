@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+tests/
+*.log
+
+# Documentation
+*.md
+!README.md
+tai_lieu/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# Uploads and cache (should be volumes)
+uploads/
+.cache/
+*.cache
+
+# Scripts for analysis
+check_package_sizes.py
+analyze_docker_size.py
+
+# Development files
+Makefile
+setup.sh
+
+# Environment files (should be passed as env vars)
+.env
+.env.local
+

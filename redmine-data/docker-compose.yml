@@ -1,0 +1,155 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector extension
+  postgres:
+    image: pgvector/pgvector:pg15
+    container_name: rag-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init_db.sql:/docker-entrypoint-initdb.d/init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-network
+
+  # Redis for caching and job queue
+  redis:
+    image: redis:7-alpine
+    container_name: rag-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag-network
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: rag-backend
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_MODEL: ${OPENAI_MODEL}
+      DEFAULT_LLM_PROVIDER: ${DEFAULT_LLM_PROVIDER:-openai}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL}
+      GOOGLE_SERVICE_ACCOUNT_PATH: ${GOOGLE_SERVICE_ACCOUNT_PATH:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      GOOGLE_SSL_VERIFY: ${GOOGLE_SSL_VERIFY:-true}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      REDMINE_URL: ${REDMINE_URL}
+      REDMINE_API_KEY: ${REDMINE_API_KEY}
+      REDMINE_API_DELAY: ${REDMINE_API_DELAY:-0.2}
+      # SMTP Configuration for Budget Alerts (Optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      BUDGET_ALERT_EMAIL_RECIPIENTS: ${BUDGET_ALERT_EMAIL_RECIPIENTS:-}
+    volumes:
+      - ./app:/app/app
+      - ./uploads:/app/uploads
+      - ./logs/backend:/app/logs
+      - backend_cache:/app/.cache
+      # Mount Google service account credentials (read-only)
+      - ./google-credentials:/app/google-credentials:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    networks:
+      - rag-network
+
+  # Streamlit UI
+  streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    container_name: rag-streamlit
+    ports:
+      - "8501:8501"
+    environment:
+      BACKEND_API_URL: ${BACKEND_API_URL}
+      DATABASE_URL: ${DATABASE_URL}
+    volumes:
+      - ./streamlit_app:/app/streamlit_app
+      - ./app:/app/app
+    depends_on:
+      - backend
+    command: streamlit run streamlit_app/Home.py --server.port 8501 --server.address 0.0.0.0
+    networks:
+      - rag-network
+
+  # Job Scheduler Service (Lightweight ~200MB vs Backend ~3-4GB)
+  # This service only manages cron schedules and calls Backend API for heavy work
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.scheduler
+    container_name: rag-scheduler
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      BACKEND_API_URL: http://backend:8000
+      # SMTP Configuration for Budget Alert Emails
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+      SES_CONFIGURATION_SET: ${SES_CONFIGURATION_SET:-}
+      BUDGET_ALERT_EMAIL_RECIPIENTS: ${BUDGET_ALERT_EMAIL_RECIPIENTS:-}
+    volumes:
+      - ./logs/scheduler:/app/logs
+      - ./app/config.py:/app/app/config.py
+      - ./app/database.py:/app/app/database.py
+      - ./app/models.py:/app/app/models.py
+      - ./app/logging_config.py:/app/app/logging_config.py
+      - ./app/schedulers:/app/app/schedulers
+      - ./app/services/__init__.py:/app/app/services/__init__.py
+      - ./app/services/budget:/app/app/services/budget
+    depends_on:
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    command: python -m app.schedulers.job_scheduler
+    networks:
+      - rag-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  backend_cache:
+
+networks:
+  rag-network:
+    external: true

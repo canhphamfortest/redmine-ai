@@ -1,0 +1,21 @@
+<%# 
+  Partial view được inject vào issue show page thông qua hook
+  Hook point: view_issues_show_details_bottom
+  
+  Button "Create Note with Checklist" sẽ được di chuyển vào phần #relations 
+  bằng JavaScript trong checklist.js để hiển thị gần phần "Related issues"
+%>
+<% if issue %>
+<%# Button container - Ẩn ban đầu, sẽ được di chuyển và hiển thị bởi JavaScript %>
+<div id="custom-draft-note-button-container" style="display: none;">
+  <%= link_to "Create Note with Checklist", "#", 
+      class: "button custom-create-draft-note", 
+      id: "custom-create-draft-note-btn",
+      "data-issue-id" => issue.id,
+      style: "margin-right: 10px;" %>
+  <span style="color: #777; font-style: italic; font-size: 12px;">
+    Click để AI Agent phân tích issue và tạo checklist tự động
+  </span>
+</div>
+<% end %>
+

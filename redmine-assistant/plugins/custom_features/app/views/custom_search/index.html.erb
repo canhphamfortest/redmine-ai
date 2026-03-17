@@ -1,0 +1,273 @@
+<%# 
+  Custom Search Page View
+  Hiển thị form tìm kiếm và kết quả từ AI Agent (RAG search)
+  
+  Controller: CustomSearchController
+  Action: index/search
+%>
+
+<%# Load plugin stylesheet và inline styles cho loading overlay %>
+<% content_for :header_tags do %>
+  <%= stylesheet_link_tag 'custom_features', plugin: 'custom_features' %>
+  <%# Inline styles cho loading overlay và spinner %>
+  <style>
+    .cf-loading-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .cf-loading-overlay.is-active {
+      display: flex;
+    }
+    
+    .cf-loading-content {
+      background: white;
+      padding: 30px 40px;
+      border-radius: 8px;
+      text-align: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .cf-spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid #f3f3f3;
+      border-top: 4px solid #3498db;
+      border-radius: 50%;
+      animation: cf-spin 1s linear infinite;
+      margin: 0 auto 15px;
+    }
+    
+    @keyframes cf-spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .cf-loading-text {
+      font-size: 16px;
+      color: #333;
+      font-weight: 500;
+    }
+  </style>
+<% end %>
+
+<%# Main search page container %>
+<div class="cf-search-page">
+  <%# Page header với title và description %>
+  <div class="cf-search-page__header">
+    <div>
+      <h2>🤖 AI Agent</h2>
+      <p>Hỏi AI Agent dựa trên dữ liệu đã ingest.</p>
+    </div>
+    <div class="cf-context-actions">
+    </div>
+  </div>
+
+  <%# Search form card %>
+  <div class="cf-search-card">
+    <%# Form tìm kiếm - GET request để có thể bookmark/share URL %>
+    <%= form_tag({ controller: 'custom_search', action: 'index' }, method: :get, class: 'cf-search-form', id: 'cf-search-form') do %>
+      <%= hidden_field_tag 'mode', 'rag' %>
+      
+      <div class="cf-search-form__row">
+        <div class="cf-input-wrapper">
+          <label for="cf-search-query">Câu hỏi</label>
+          <%= text_field_tag 'q', @query,
+                placeholder: 'Nhập câu hỏi (ví dụ: Hướng dẫn deploy RAG)...',
+                class: 'cf-search-input',
+                id: 'cf-search-query',
+                autocomplete: 'off' %>
+        </div>
+      </div>
+
+      <div class="cf-search-form__row">
+        <div class="cf-input-wrapper">
+          <label for="cf-project-select">Filter Project</label>
+          <%= select_tag 'project_ids[]',
+                options_for_select(
+                  [['Tất cả', 'all-projects']] + @accessible_projects.map { |p| [p.name, p.id] },
+                  @project&.id || (@list_project_ids && @list_project_ids.length == @accessible_projects.length ? ['all-projects'] : @list_project_ids)
+                ),
+                {
+                  multiple: true,
+                  class: 'cf-search-select',
+                  id: 'cf-project-select',
+                  size: 10
+                } %>
+          <small style="color: #666; font-size: 0.9em;">Giữ Ctrl (hoặc Cmd) để chọn nhiều projects</small>
+        </div>
+      </div>
+
+      </div>
+
+      <div class="cf-search-form__actions">
+        <%= submit_tag 'Hỏi AI', class: 'button cf-primary-btn', id: 'cf-submit-btn' %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# Loading overlay - hiển thị khi đang gọi AI Agent %>
+  <div class="cf-loading-overlay" id="cf-loading-overlay">
+    <div class="cf-loading-content">
+      <div class="cf-spinner"></div>
+      <div class="cf-loading-text">🤖 AI đang suy nghĩ...</div>
+    </div>
+  </div>
+
+  <%# JavaScript để hiển thị loading overlay khi submit form %>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const form = document.getElementById('cf-search-form');
+      const loadingOverlay = document.getElementById('cf-loading-overlay');
+      const submitBtn = document.getElementById('cf-submit-btn');
+      const projectSelect = document.getElementById('cf-project-select');
+      
+      // Handle project selection change
+      if (projectSelect) {
+        projectSelect.addEventListener('change', function() {
+          // Không cần thay đổi value, để controller xử lý 'all'
+        });
+      }
+      
+      if (form && loadingOverlay) {
+        form.addEventListener('submit', function(e) {
+          const query = document.getElementById('cf-search-query').value.trim();
+          if (query) {
+            loadingOverlay.classList.add('is-active');
+            submitBtn.disabled = true;
+            submitBtn.value = 'Đang xử lý...';
+          }
+        });
+      }
+    });
+  </script>
+
+  <%# Hiển thị lỗi nếu có %>
+  <% if @search_error.present? %>
+    <div class="cf-alert cf-alert--error">
+      <strong>Lỗi:</strong> <%= h(@search_error) %>
+    </div>
+  <% end %>
+
+  <%# Hiển thị hướng dẫn nếu chưa có query %>
+  <% if @query.blank? %>
+    <div class="cf-search-help">
+      <h3>Hướng dẫn</h3>
+      <p>Sử dụng AI Agent khi cần hỏi bằng ngôn ngữ tự nhiên và tìm kiếm ngữ nghĩa (vector search) cho các tình huống Redmine filter khó bắt:</p>
+      <ul>
+        <li>Tìm tương tự khó bắt bằng bộ lọc: “Issue có lỗi về upload file?”</li>
+        <li>Tìm theo ngữ cảnh mơ hồ: “Các issue liên quan đến vấn đề xử lý server lỗi?”</li>
+      </ul>
+      <p>Mẹo: nếu kết quả chưa sát, thêm từ khóa dự án/phiên bản/thời gian hoặc đặt lại câu ngắn gọn hơn.</p>
+    </div>
+  <%# Hiển thị kết quả nếu có AI answer %>
+  <% elsif @ai_answer.present? %>
+    <div class="cf-search-results">
+      <div class="cf-result-summary">
+        <div>
+          <span class="cf-summary-label">Câu hỏi</span>
+          <strong>"<%= h(@query) %>"</strong>
+        </div>
+        <% if @response_time_ms.present? %>
+          <div>
+            <span class="cf-summary-label">Thời gian phản hồi</span>
+            <strong><%= @response_time_ms %> ms</strong>
+          </div>
+        <% end %>
+      </div>
+
+      <%# AI answer section - hiển thị câu trả lời từ AI Agent %>
+      <div class="cf-ai-answer">
+        <div class="cf-ai-answer__header">
+          <span>🤖 AI Agent</span>
+        </div>
+        <div class="cf-ai-answer__body">
+          <%= simple_format(@ai_answer) %>
+        </div>
+        <% if @sources.present? %>
+          <div class="cf-ai-answer__sources">
+            <span>Nguồn tham chiếu:</span>
+            <ul>
+              <% @sources.each do |source| %>
+                <li>
+                  <strong><%= h(source[:title] || 'Unknown') %></strong>
+                  (<%= source[:type] || 'N/A' %>, <%= source[:project] || 'N/A' %>)
+                  <% if source[:url].present? %>
+                    – <%= link_to 'Xem', source[:url], target: '_blank', rel: 'noopener' %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
+      </div>
+
+      <%# Hiển thị danh sách các chunks tìm được (retrieved chunks) %>
+      <% if @results.any? %>
+        <div class="cf-result-list">
+          <% @results.each_with_index do |result, index| %>
+            <% metadata = result[:metadata] || {} %>
+            <% similarity = result[:similarity].to_f %>
+            <% badge_class =
+              if similarity >= 0.8
+                'cf-score-badge--high'
+              elsif similarity >= 0.7
+                'cf-score-badge--medium'
+              else
+                'cf-score-badge--low'
+              end
+            %>
+            <div class="cf-result-card">
+              <div class="cf-result-card__header">
+                <div>
+                  <span class="cf-result-index">#<%= index + 1 %></span>
+                  <span class="cf-result-source">
+                    <%= h(metadata[:source_reference] || metadata[:heading] || 'Unknown source') %>
+                  </span>
+                  <% if metadata[:source_type].present? %>
+                    <span class="cf-badge"><%= metadata[:source_type] %></span>
+                  <% end %>
+                </div>
+                <% if similarity.positive? %>
+                  <span class="cf-score-badge <%= badge_class %>">
+                    <%= number_to_percentage(similarity * 100, precision: 1) %>
+                  </span>
+                <% end %>
+              </div>
+              <div class="cf-result-card__body">
+                <%= simple_format(result[:text]) %>
+              </div>
+              <div class="cf-result-card__meta">
+                <% if metadata[:project_key].present? %>
+                  <span>Project: <strong><%= metadata[:project_key] %></strong></span>
+                <% end %>
+                <% if metadata[:author].present? %>
+                  <span>Author: <strong><%= metadata[:author] %></strong></span>
+                <% end %>
+                <% if metadata[:page].present? %>
+                  <span>Page: <strong><%= metadata[:page] %></strong></span>
+                <% end %>
+                <% if metadata[:external_url].present? %>
+                  <span><%= link_to 'Mở nguồn', metadata[:external_url], target: '_blank', rel: 'noopener' %></span>
+                <% end %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  <%# Hiển thị thông báo không có kết quả nếu không có lỗi và không có answer %>
+  <% elsif @search_error.blank? %>
+    <div class="nodata">
+      Không có kết quả cho "<%= h(@query) %>".
+    </div>
+  <% end %>
+</div>

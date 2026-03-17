@@ -1,0 +1,284 @@
+@startuml
+skinparam linetype ortho
+
+entity source {
+  * id: uuid <<PK>>
+  --
+  source_type: text
+  external_id: text
+  external_url: text
+  project_key: text
+  project_id: int
+  language: text
+  sha1_content: text
+  sync_status: text
+  error_message: text
+  retry_count: int
+  last_sync_at: timestamptz
+  created_at: timestamptz
+  updated_at: timestamptz
+}
+
+entity source_redmine_issue {
+  * id: uuid <<PK>>
+  --
+  source_id: uuid <<FK>>
+  tracker_id: int
+  tracker_name: text
+  status_id: int
+  status_name: text
+  status_is_closed: bool
+  priority_id: int
+  priority_name: text
+  category_id: int
+  category_name: text
+  author_id: int
+  author_name: text
+  assigned_to_id: int
+  assigned_to_name: text
+  fixed_version_id: int
+  fixed_version_name: text
+  parent_issue_id: int
+  estimated_hours: float4
+  done_ratio: int
+  start_date: date
+  due_date: date
+  closed_on: timestamptz
+}
+
+entity source_redmine_wiki {
+  * id: uuid <<PK>>
+  --
+  source_id: uuid <<FK>>
+  wiki_version: int
+  parent_page_title: text
+  author_id: int
+  author_name: text
+  comments: text
+  redmine_project_id: int
+  redmine_project_name: text
+}
+
+entity source_git_file {
+  * id: uuid <<PK>>
+  --
+  source_id: uuid <<FK>>
+  repository_name: text
+  repository_url: text
+  branch: text
+  commit_hash: text
+  commit_short_hash: text
+  commit_author_name: text
+  commit_author_email: text
+  commit_date: timestamptz
+  commit_message: text
+  file_extension: text
+  file_type: text
+  file_size_bytes: bigint
+  line_count: int
+}
+
+entity source_document {
+  * id: uuid <<PK>>
+  --
+  source_id: uuid <<FK>>
+  filename: text
+  mime_type: text
+  file_size_bytes: bigint
+  page_count: int
+  author: text
+  created_date: timestamptz
+  modified_date: timestamptz
+  source_location: text
+}
+
+entity chunk {
+  * id: uuid <<PK>>
+  --
+  source_id: uuid <<FK>>
+  ordinal: int
+  chunk_type: text
+  text_content: text
+  token_count: int
+  status: text
+  
+  ' Context for display
+  heading_title: text
+  heading_level: int
+  author_id: int
+  author_name: text
+  created_on: timestamptz
+  
+  ' Journal/comment specific
+  journal_id: int
+  is_private: bool
+  
+  ' Code specific
+  code_language: text
+  function_name: text
+  class_name: text
+  line_start: int
+  line_end: int
+  
+  ' Document specific
+  page_number: int
+  
+  ' Wiki specific
+  wiki_version: int
+  section_index: int
+  
+  created_at: timestamptz
+  updated_at: timestamptz
+}
+
+entity embedding {
+  * id: uuid <<PK>>
+  --
+  chunk_id: uuid <<FK>> <<UNIQUE>>
+  embedding: vector(1024)
+  model_name: text
+  quality_score: float4
+  status: text
+  created_at: timestamptz
+  updated_at: timestamptz
+}
+
+entity search_log {
+  * id: uuid <<PK>>
+  --
+  user_id: text
+  query: text
+  filters: jsonb
+  top_chunk_ids: uuid[]
+  response_time_ms: int
+  created_at: timestamptz
+}
+
+entity scheduled_jobs {
+  * id: uuid <<PK>>
+  --
+  job_name: text
+  job_type: text
+  cron_expression: text
+  is_active: bool
+  config: jsonb
+  last_run_at: timestamptz
+  next_run_at: timestamptz
+  created_at: timestamptz
+  updated_at: timestamptz
+}
+
+entity job_executions {
+  * id: uuid <<PK>>
+  --
+  job_id: uuid <<FK>>
+  started_at: timestamptz
+  completed_at: timestamptz
+  status: text
+  items_processed: int
+  items_failed: int
+  error_message: text
+  execution_log: jsonb
+  created_at: timestamptz
+}
+
+entity openai_usage_log {
+  * id: uuid <<PK>>
+  --
+  model: text
+  input_token: int
+  output_token: int
+  total_tokens: int
+  cost_usd: float
+  user_query: text
+  cached: bool
+  response_time_ms: int
+  metadata: jsonb
+  created_at: timestamptz
+}
+
+entity openai_usage_log_detail {
+  * id: uuid <<PK>>
+  --
+  usage_log_id: uuid <<FK>>
+  prompt: text
+  response: text
+  created_at: timestamptz
+}
+
+entity openai_config {
+  * id: uuid <<PK>>
+  --
+  model_name: text <<UNIQUE>>
+  input_price_per_1m: float
+  output_price_per_1m: float
+  is_active: bool
+  is_default: bool
+  description: text
+  created_at: timestamptz
+  updated_at: timestamptz
+}
+
+entity account {
+  * id: uuid <<PK>>
+  --
+  username: text <<UNIQUE>>
+  email: text <<UNIQUE>>
+  hashed_password: text
+  full_name: text
+  is_active: bool
+  is_admin: bool
+  created_at: timestamptz
+  updated_at: timestamptz
+  last_login: timestamptz
+}
+
+source ||--o| source_redmine_issue
+source ||--o| source_redmine_wiki
+source ||--o| source_git_file
+source ||--o| source_document
+source ||--o{ chunk
+
+chunk ||--|| embedding
+
+scheduled_jobs ||--o{ job_executions
+
+openai_usage_log ||--o{ openai_usage_log_detail
+
+note right of source
+  Core table - merged document fields
+  source_type determines which
+  detail table has data
+  sha1_content for deduplication
+  UNIQUE constraint: (source_type, external_id)
+  sync_status: pending, success, failed, outdated
+  Tracks sync state for Redmine/Git sources
+end note
+
+note right of chunk
+  status: pending, processed, failed, archived
+  Links directly to source now
+  chunk_type: text, code, issue_metadata, etc.
+end note
+
+note right of embedding
+  status: active, outdated, regenerating
+  Vector dimension: 1024 (mixedbread-ai model)
+  model_name: default 'mixedbread-ai/mxbai-embed-large-v1'
+end note
+
+note right of openai_usage_log_detail
+  Stores full prompt and response
+  for OpenAI API calls
+  Linked to openai_usage_log
+  Used for debugging and review
+end note
+
+note right of account
+  User accounts for authentication
+  Table name: 'account' in database
+  Password hashed with bcrypt
+  Supports admin and active flags
+end note
+
+@enduml
