@@ -172,13 +172,25 @@
    */
   Checklist.handleCreateDraftNoteSuccess = function(response, button) {
     Utils.notify(response.message || 'Draft note với checklist đã được tạo thành công!', 'success');
+
+    // Đánh dấu để scroll xuống cuối trang sau khi reload
+    sessionStorage.setItem('custom_scroll_to_bottom', '1');
+
     setTimeout(function() {
-      if (response.redirect_url) {
-        window.location.href = response.redirect_url;
-      } else {
-        window.location.reload();
-      }
+      var url = (response.redirect_url || window.location.pathname).split('#')[0];
+      window.location.href = url;
     }, 1000);
+  };
+
+  /**
+   * Scroll xuống cuối trang nếu có flag trong sessionStorage
+   */
+  Checklist.scrollToBottomAfterReload = function() {
+    if (!sessionStorage.getItem('custom_scroll_to_bottom')) return;
+    sessionStorage.removeItem('custom_scroll_to_bottom');
+    setTimeout(function() {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 300);
   };
 
   /**
@@ -472,6 +484,8 @@
    * Thiết lập các event handlers và tự động di chuyển button vào relations section
    */
   Checklist.init = function() {
+    // Scroll xuống cuối trang nếu có flag (phải chạy trước isProjectEnabled check)
+    Checklist.scrollToBottomAfterReload();
 
     // Chỉ bật khi project nằm trong danh sách đã cấu hình
     if (!Utils.isProjectEnabled()) {
