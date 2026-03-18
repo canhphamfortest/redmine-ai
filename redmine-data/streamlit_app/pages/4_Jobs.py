@@ -265,28 +265,35 @@ with tab2:
             st.markdown("**Schedule (Cron Expression)**")
             col1, col2 = st.columns([2, 1])
 
-            with col1:
-                cron_expression = st.text_input(
-                    "Cron Expression",
-                    value="0 2 * * *",
-                    help="Format: minute hour day month weekday"
-                )
+            # Resolve preset → cron value BEFORE rendering st.text_input so the
+            # input always reflects the current selection on the same render pass.
+            _CRON_PRESETS = {
+                "Every day at 2 AM": "0 2 * * *",
+                "Every 6 hours":     "0 */6 * * *",
+                "Every Monday":      "0 0 * * 1",
+            }
+            if "cron_expression" not in st.session_state:
+                st.session_state["cron_expression"] = "0 2 * * *"
 
             with col2:
                 st.markdown("**Common Schedules:**")
                 cron_preset = st.radio(
                     "Select preset",
-                    options=["Every day at 2 AM", "Every 6 hours", "Every Monday"],
+                    options=list(_CRON_PRESETS.keys()),
                     index=None,
                     key="cron_preset",
                     label_visibility="collapsed"
                 )
-                if cron_preset == "Every day at 2 AM":
-                    cron_expression = "0 2 * * *"
-                elif cron_preset == "Every 6 hours":
-                    cron_expression = "0 */6 * * *"
-                elif cron_preset == "Every Monday":
-                    cron_expression = "0 0 * * 1"
+                if cron_preset and cron_preset in _CRON_PRESETS:
+                    st.session_state["cron_expression"] = _CRON_PRESETS[cron_preset]
+
+            with col1:
+                cron_expression = st.text_input(
+                    "Cron Expression",
+                    value=st.session_state["cron_expression"],
+                    key="cron_expression",
+                    help="Format: minute hour day month weekday"
+                )
 
             # ── Render form config động từ options() của job ──────────────
             st.markdown("**Job Configuration**")

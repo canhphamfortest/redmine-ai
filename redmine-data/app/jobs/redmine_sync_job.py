@@ -78,11 +78,20 @@ class RedmineSyncJob(BaseJob):
         if not project_identifier:
             raise ValueError("project_identifier is required in job config")
 
+        # Build filters dict from dot-separated keys (e.g. "filters.status" → filters["status"]).
+        # JobOption stores flat keys like "filters.status" in job.config; we also
+        # accept a pre-built "filters" dict for backward compatibility.
+        filters: Dict[str, Any] = dict(kwargs.get("filters") or {})
+        for key, value in kwargs.items():
+            if key.startswith("filters.") and value:
+                sub_key = key[len("filters."):]
+                filters[sub_key] = value
+
         redmine_sync = RedmineSync()
 
         return redmine_sync.sync_project(
             project_id=project_identifier,
             incremental=kwargs.get("incremental", True),
-            filters=kwargs.get("filters", {}),
+            filters=filters,
             execution_id=execution_id,
         )

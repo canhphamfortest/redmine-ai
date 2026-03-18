@@ -61,8 +61,32 @@ def discover_jobs(package_name: str = "app.jobs") -> Dict[str, "BaseJob"]:
                     and attr.name is not None
                 ):
                     instance = attr()
-                    registry[instance.name] = instance
-                    logger.debug(f"Registered job: {instance.name} ({attr_name})")
+                    job_name = instance.name
+
+                    # Detect duplicate: same name already registered by a
+                    # different class (re-exports or copy-paste errors).
+                    if job_name in registry:
+                        existing = registry[job_name]
+                        existing_cls = type(existing)
+                        if existing_cls is not attr:
+                            # Different class — surface the conflict clearly
+                            logger.error(
+                                f"Duplicate job name '{job_name}': "
+                                f"already registered as {existing_cls.__module__}.{existing_cls.__qualname__} "
+                                f"(from a previous module), "
+                                f"skipping {attr.__module__}.{attr.__qualname__} "
+                                f"(attr '{attr_name}' in {full_module_name}). "
+                                f"Rename one of the job classes or change its `name` attribute."
+                            )
+                        else:
+                            # Same class seen again via re-export — harmless, just skip
+                            logger.debug(
+                                f"Job '{job_name}' ({attr.__qualname__}) already registered, skipping re-export"
+                            )
+                        continue  # Never silently overwrite
+
+                    registry[job_name] = instance
+                    logger.debug(f"Registered job: {job_name} ({attr.__module__}.{attr.__qualname__})")
             except Exception as e:
                 logger.warning(f"Failed to register {attr_name} from {full_module_name}: {e}")
 

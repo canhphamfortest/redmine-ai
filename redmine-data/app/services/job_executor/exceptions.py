@@ -35,5 +35,9 @@ def check_cancelled(execution_id: Optional[Union[str, UUID]], db) -> None:
             raise JobCancelledException(f"Execution {execution_id} was cancelled by user")
     except JobCancelledException:
         raise
-    except Exception as e:
-        logger.error(f"Failed to check cancellation for execution {execution_id}: {e}")
+    except Exception:
+        logger.exception(
+            "Failed to check cancellation for execution %s",
+            execution_id,
+        )
+        raise

@@ -62,10 +62,14 @@ class SourceCheckJob(BaseJob):
 
         check_cancelled(execution_id, db)
 
-        limit = kwargs.get("limit")
-        if limit is None:
-            limit = 1000
-        elif not isinstance(limit, int) or limit < 0:
+        limit_raw = kwargs.get("limit", 1000)
+        if isinstance(limit_raw, bool):
+            raise ValueError("Invalid limit: must be a non-negative integer.")
+        try:
+            limit = int(limit_raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid limit: {limit_raw}. Must be non-negative integer.") from exc
+        if limit < 0:
             raise ValueError(f"Invalid limit: {limit}. Must be non-negative integer.")
         # 0 = không giới hạn → truyền None cho SourceChecker
         if limit == 0:

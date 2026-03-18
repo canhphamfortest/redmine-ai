@@ -13,12 +13,6 @@ from app.services.embedder import embedder
 logger = logging.getLogger(__name__)
 
 
-def _chunk_batches(items: List[Chunk], batch_size: int):
-    """Chia danh sách chunks thành các batch."""
-    for i in range(0, len(items), batch_size):
-        yield items[i : i + batch_size]
-
-
 class ChunkEmbeddingJob(BaseJob):
     """Tạo vector embeddings cho các chunks chưa có embedding.
 
@@ -115,39 +109,58 @@ class ChunkEmbeddingJob(BaseJob):
 
         result: Dict[str, Any] = {"selected": 0, "processed": 0, "failed": 0, "errors": []}
 
-        # Build query
-        query = db.query(Chunk).outerjoin(Embedding, Embedding.chunk_id == Chunk.id)
+        # Build base query — no .limit()/.all() here; pagination done per batch below
+        base_query = db.query(Chunk).outerjoin(Embedding, Embedding.chunk_id == Chunk.id)
 
         if only_pending:
-            query = query.filter(Chunk.status.in_(["pending", "failed"]))
+            base_query = base_query.filter(Chunk.status.in_(["pending", "failed"]))
 
         embedding_condition = Embedding.id == None  # noqa: E711
         if include_failed:
             embedding_condition = or_(Embedding.id == None, Embedding.status != "active")  # noqa: E711
-        query = query.filter(embedding_condition)
+        base_query = base_query.filter(embedding_condition)
 
         if source_type or project_key:
-            query = query.join(Source, Chunk.source_id == Source.id)
+            base_query = base_query.join(Source, Chunk.source_id == Source.id)
             if source_type:
-                query = query.filter(Source.source_type == source_type)
+                base_query = base_query.filter(Source.source_type == source_type)
             if project_key:
-                query = query.filter(Source.project_key == project_key)
+                base_query = base_query.filter(Source.project_key == project_key)
 
-        query = query.order_by(Chunk.created_at.asc())
-        if limit > 0:
-            query = query.limit(limit)
+        base_query = base_query.order_by(Chunk.created_at.asc())
 
-        chunks = query.all()
-        result["selected"] = len(chunks)
+        logger.info(
+            f"Embedding job starting (limit={limit}, batch_size={batch_size}, "
+            f"source_type={source_type}, project_key={project_key})"
+        )
 
-        if not chunks:
-            logger.info("No chunks to embed for this run")
-            return result
+        # ── DB-level pagination: fetch batch_size rows at a time ─────────────
+        # This avoids loading all matching chunks into memory at once (OOM risk
+        # when limit==0 or the dataset is large).
+        #
+        # Important: after each batch we commit (which may change chunk.status),
+        # so we must NOT use a plain incrementing offset — processed rows would
+        # shift the result set and cause skips.  Instead we re-query using a
+        # cursor on Chunk.created_at + Chunk.id so already-processed rows are
+        # naturally excluded by the status / embedding filters.
+        offset = 0
+        total_remaining = limit  # 0 means unlimited
 
-        logger.info(f"Embedding job picked {len(chunks)} chunks (limit={limit}, batch_size={batch_size})")
-
-        for chunk_batch in _chunk_batches(chunks, batch_size):
+        while True:
             check_cancelled(execution_id, db)
+
+            # How many rows to fetch this round?
+            fetch_size = batch_size
+            if total_remaining > 0:
+                fetch_size = min(batch_size, total_remaining)
+
+            chunk_batch = base_query.limit(fetch_size).offset(offset).all()
+
+            if not chunk_batch:
+                break  # No more rows matching the filters
+
+            result["selected"] += len(chunk_batch)
+            logger.debug(f"Fetched {len(chunk_batch)} chunks at offset {offset}")
 
             texts = [chunk.text_content or "" for chunk in chunk_batch]
             embeddings = embedder.embed_batch(texts, batch_size=batch_size)
@@ -182,10 +195,33 @@ class ChunkEmbeddingJob(BaseJob):
 
                 except Exception as e:
                     logger.error(f"Failed to embed chunk {chunk_obj.id}: {e}", exc_info=True)
+                    # Rollback first — session may be in error state after a
+                    # failed db.flush()/db.add(); without this db.commit() at
+                    # the end of the batch raises PendingRollbackError.
+                    db.rollback()
+                    # Re-apply the status update after rollback (the ORM object
+                    # is still in-memory; rollback only reverts unflushed DB ops)
                     chunk_obj.status = "failed"
                     result["failed"] += 1
                     result["errors"].append(f"Chunk {chunk_obj.id}: {str(e)}")
 
+            # Commit after every batch — keeps memory low, progress durable
             db.commit()
+
+            # After commit, successfully processed chunks change status and are
+            # excluded from base_query on the next iteration; failed ones stay
+            # (status still "failed") and would re-appear at the same offset.
+            # Advance offset only by the number of failed chunks to avoid skips.
+            batch_failed = sum(1 for c in chunk_batch if c.status == "failed")
+            offset += batch_failed
+
+            # Stop if we've hit the overall limit
+            if total_remaining > 0:
+                total_remaining -= len(chunk_batch)
+                if total_remaining <= 0:
+                    break
+
+        if result["selected"] == 0:
+            logger.info("No chunks to embed for this run")
 
         return result
