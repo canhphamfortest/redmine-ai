@@ -138,3 +138,78 @@ class BaseJob(ABC):
             "description": self.description,
             "options": [opt.to_dict() for opt in self.options()],
         }
+
+    @classmethod
+    def run_cli(cls) -> None:
+        """Chạy job từ command line.
+
+        Parse args từ sys.argv dựa trên options() của job, tạo DB session,
+        rồi gọi execute(). Kết quả in ra stdout dạng JSON.
+
+        Ví dụ:
+            python -m app.jobs.redmine_sync_job --project_identifier=myproject
+            python -m app.jobs.chunk_embedding_job --limit=200 --batch_size=32
+            python -m app.jobs.source_check_job --help
+        """
+        import argparse
+        import json
+        import sys
+
+        job = cls()
+        opts = job.options()
+
+        parser = argparse.ArgumentParser(
+            prog=f"python -m app.jobs.{cls.__module__.split('.')[-1]}",
+            description=f"{job.label}: {job.description}",
+        )
+
+        # Build argparse args từ options()
+        _BOOL_TRUE = {"true", "1", "yes"}
+        for opt in opts:
+            kwargs: Dict[str, Any] = {
+                "dest": opt.key.replace(".", "_"),   # "filters.status" → "filters_status"
+                "help": opt.help or "",
+                "default": opt.default,
+                "required": False,                    # CLI luôn optional (có default)
+            }
+            if opt.type == "checkbox":
+                kwargs["type"] = lambda v: v.lower() in _BOOL_TRUE
+                kwargs["metavar"] = "true|false"
+            elif opt.type == "number":
+                kwargs["type"] = int
+            elif opt.type in ("multiselect",):
+                kwargs["nargs"] = "*"
+            else:
+                kwargs["type"] = str
+
+            parser.add_argument(f"--{opt.key.replace('.', '_')}", **kwargs)
+
+        args = parser.parse_args()
+
+        # Build kwargs cho execute() — map lại "filters_status" → "filters.status"
+        key_map = {opt.key.replace(".", "_"): opt.key for opt in opts}
+        config = {}
+        for dest_key, value in vars(args).items():
+            original_key = key_map.get(dest_key, dest_key)
+            config[original_key] = value
+
+        # Setup DB session
+        from app.database import SessionLocal
+        from app.logging_config import setup_logging
+        setup_logging()
+
+        db = SessionLocal()
+        try:
+            print(f"▶ Running {job.label}...")
+            print(f"  Config: {json.dumps(config, default=str, ensure_ascii=False)}")
+            result = job.execute(db, execution_id=None, **config)
+            print(f"✅ Done: {json.dumps(result, default=str, ensure_ascii=False, indent=2)}")
+            sys.exit(0)
+        except KeyboardInterrupt:
+            print("\n⚠️  Interrupted by user")
+            sys.exit(1)
+        except Exception as e:
+            print(f"❌ Failed: {e}", file=sys.stderr)
+            sys.exit(2)
+        finally:
+            db.close()

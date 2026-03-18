@@ -75,3 +75,7 @@ class GitSyncJob(BaseJob):
             "failed": 0,
             "errors": [],
         }
+
+
+if __name__ == "__main__":
+    GitSyncJob.run_cli()

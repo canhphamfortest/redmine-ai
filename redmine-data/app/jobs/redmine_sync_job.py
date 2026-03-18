@@ -95,3 +95,7 @@ class RedmineSyncJob(BaseJob):
             filters=filters,
             execution_id=execution_id,
         )
+
+
+if __name__ == "__main__":
+    RedmineSyncJob.run_cli()

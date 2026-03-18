@@ -94,3 +94,7 @@ class SourceCheckJob(BaseJob):
             "failed": result.get("failed", 0),
             "errors": result.get("errors", []),
         }
+
+
+if __name__ == "__main__":
+    SourceCheckJob.run_cli()

@@ -225,3 +225,7 @@ class ChunkEmbeddingJob(BaseJob):
             logger.info("No chunks to embed for this run")
 
         return result
+
+
+if __name__ == "__main__":
+    ChunkEmbeddingJob.run_cli()
