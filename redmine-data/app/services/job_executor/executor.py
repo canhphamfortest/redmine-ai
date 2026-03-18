@@ -2,7 +2,7 @@
 
 Module này cung cấp JobExecutor class để thực thi scheduled jobs:
 - Job execution: Thực thi các scheduled jobs dựa trên job_type
-- Job handlers: Xử lý các loại jobs khác nhau (redmine_sync, git_sync, source_check, chunk_embedding)
+- Job registry: Tự động discover các job types từ app/jobs/
 - Execution logging: Ghi log execution history và kết quả
 - Error handling: Xử lý lỗi và retry logic
 - Cancellation support: Hỗ trợ cancel job execution đang chạy
@@ -17,23 +17,13 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import ScheduledJob, JobExecution
-from app.services.job_executor.handlers import (
-    execute_redmine_sync,
-    execute_git_sync,
-    execute_source_check,
-    execute_chunk_embedding,
-)
+from app.services.job_executor.exceptions import JobCancelledException, check_cancelled
+from app.jobs.registry import JOB_REGISTRY
 
 logger = logging.getLogger(__name__)
 
-
-class JobCancelledException(Exception):
-    """Exception được raise khi job execution bị cancel.
-    
-    Exception này được raise khi phát hiện cancellation request từ database.
-    Nó được catch bởi JobExecutor.execute_job() để cập nhật execution status thành "cancelled".
-    """
-    pass
+# Re-export để backward compatibility
+__all__ = ["JobExecutor", "JobCancelledException"]
 
 
 class JobExecutor:
@@ -54,40 +44,26 @@ class JobExecutor:
     @staticmethod
     def is_execution_cancelled(execution_id: Union[str, UUID], db: Optional[Session] = None) -> bool:
         """Kiểm tra xem execution có bị request cancel không.
-        
-        Hàm này query database để check status của JobExecution.
-        Nếu status là "cancelled", trả về True.
-        
+
         Args:
             execution_id: ID của JobExecution cần kiểm tra (string hoặc UUID)
             db: Database session (tùy chọn). Nếu không có, sẽ tạo session mới.
-        
+
         Returns:
             bool: True nếu execution bị cancel, False nếu không
-        
-        Note:
-            - Tạo database session mới nếu db=None và đóng sau khi query
-            - Status "cancelled" được set bởi cancel_execution API handler
         """
         should_close_db = False
         if db is None:
             db = SessionLocal()
             should_close_db = True
-        
+
         try:
-            # Chuyển đổi string sang UUID nếu cần
             if isinstance(execution_id, str):
-                execution_id_uuid = UUID(execution_id)
-            else:
-                execution_id_uuid = execution_id
-            
-            execution = db.query(JobExecution).filter(JobExecution.id == execution_id_uuid).first()
-            
-            if not execution:
-                return False
-            
-            return execution.status == "cancelled"
-            
+                execution_id = UUID(execution_id)
+
+            execution = db.query(JobExecution).filter(JobExecution.id == execution_id).first()
+            return execution.status == "cancelled" if execution else False
+
         except Exception as e:
             logger.error(f"Failed to check cancellation for execution {execution_id}: {e}")
             return False
@@ -178,19 +154,17 @@ class JobExecutor:
                 return {"cancelled": True, "message": "Job was cancelled before execution started"}
             
             logger.info(f"Executing job: {job.job_name} (type: {job.job_type})")
-            
-            # Thực thi dựa trên loại job, truyền execution_id để handlers có thể check cancellation
+
+            # Dispatch tới job handler qua registry — không cần if/elif
             try:
-                if job.job_type == "redmine_sync":
-                    result = execute_redmine_sync(job, db, execution_id)
-                elif job.job_type == "git_sync":
-                    result = execute_git_sync(job, db, execution_id)
-                elif job.job_type == "source_check":
-                    result = execute_source_check(job, db, execution_id)
-                elif job.job_type == "chunk_embedding":
-                    result = execute_chunk_embedding(job, db, execution_id)
-                else:
-                    raise ValueError(f"Unknown job type: {job.job_type}")
+                handler = JOB_REGISTRY.get(job.job_type)
+                if not handler:
+                    raise ValueError(
+                        f"Unknown job type: '{job.job_type}'. "
+                        f"Available types: {list(JOB_REGISTRY.keys())}"
+                    )
+                config = job.config or {}
+                result = handler.execute(db, execution_id=execution_id, **config)
                 
                 # Kiểm tra cancellation sau khi handler hoàn thành
                 if execution_id and JobExecutor.is_execution_cancelled(execution_id, db):

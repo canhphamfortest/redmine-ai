@@ -226,181 +226,138 @@ with tab1:
 # ===== CREATE JOB =====
 with tab2:
     st.subheader("Create New Job")
-    
-    # Chọn job type bên ngoài form để UI thay đổi theo lựa chọn ngay lập tức
-    job_type = st.selectbox(
-        "Job Type",
-        ["redmine_sync", "git_sync", "source_check", "chunk_embedding"],
-        key="create_job_type",
-    )
-    
-    with st.form("create_job_form"):
-        job_name = st.text_input("Job Name", placeholder="Daily Redmine Sync")
-        
-        st.markdown("**Schedule (Cron Expression)**")
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            cron_expression = st.text_input(
-                "Cron Expression",
-                value="0 2 * * *",
-                help="Format: minute hour day month weekday"
-            )
-        
-        with col2:
-            st.markdown("**Common Schedules:**")
-            cron_preset = st.radio(
-                "Select preset",
-                options=[
-                    "Every day at 2 AM",
-                    "Every 6 hours",
-                    "Every Monday"
-                ],
-                index=None,
-                key="cron_preset",
-                label_visibility="collapsed"
-            )
-            
-            if cron_preset == "Every day at 2 AM":
-                cron_expression = "0 2 * * *"
-            elif cron_preset == "Every 6 hours":
-                cron_expression = "0 */6 * * *"
-            elif cron_preset == "Every Monday":
-                cron_expression = "0 0 * * 1"
-        
-        st.markdown("**Job Configuration**")
-        
-        if job_type == "redmine_sync":
-            project_identifier = st.text_input(
-                "Redmine Project Identifier", 
-                placeholder="myproject",
-                help="Project identifier (string) hoặc Project ID (số). Ví dụ: 'myproject' hoặc '123'"
-            )
-            
-            incremental = st.checkbox("Incremental Sync", value=True, 
-                                     help="Only sync updated issues since last run")
-            
-            st.markdown("**Filters (optional):**")
-            col1, col2 = st.columns(2)
-            
+
+    # Fetch job types từ API (render form động — không hardcode)
+    @st.cache_data(ttl=60)
+    def fetch_job_types():
+        try:
+            resp = requests.get(f"{API_URL}/api/jobs/types", timeout=5)
+            if resp.status_code == 200:
+                return resp.json().get("job_types", [])
+        except Exception:
+            pass
+        return []
+
+    job_types_data = fetch_job_types()
+
+    if not job_types_data:
+        st.warning("Cannot load job types from API. Please check backend connection.")
+    else:
+        # Map label → metadata
+        type_map = {jt["name"]: jt for jt in job_types_data}
+        type_labels = {jt["name"]: jt["label"] for jt in job_types_data}
+
+        # Chọn job type ngoài form để UI cập nhật ngay
+        selected_name = st.selectbox(
+            "Job Type",
+            options=list(type_map.keys()),
+            format_func=lambda n: type_labels.get(n, n),
+            key="create_job_type",
+        )
+        selected_type = type_map[selected_name]
+
+        if selected_type.get("description"):
+            st.caption(selected_type["description"])
+
+        with st.form("create_job_form"):
+            job_name = st.text_input("Job Name", placeholder=f"My {selected_type['label']} Job")
+
+            st.markdown("**Schedule (Cron Expression)**")
+            col1, col2 = st.columns([2, 1])
+
             with col1:
-                status_filter = st.multiselect(
-                    "Status",
-                    ["New", "In Progress", "Resolved", "Closed"]
+                cron_expression = st.text_input(
+                    "Cron Expression",
+                    value="0 2 * * *",
+                    help="Format: minute hour day month weekday"
                 )
-            
+
             with col2:
-                tracker_filter = st.multiselect(
-                    "Tracker",
-                    ["Bug", "Feature", "Support", "Task"]
+                st.markdown("**Common Schedules:**")
+                cron_preset = st.radio(
+                    "Select preset",
+                    options=["Every day at 2 AM", "Every 6 hours", "Every Monday"],
+                    index=None,
+                    key="cron_preset",
+                    label_visibility="collapsed"
                 )
-            
-            config = {
-                "project_identifier": project_identifier,
-                "incremental": incremental,
-                "filters": {}
-            }
-            
-            if status_filter:
-                config['filters']['status'] = status_filter
-            if tracker_filter:
-                config['filters']['tracker'] = tracker_filter
-        
-        elif job_type == "chunk_embedding":
-            limit = st.number_input(
-                "Max chunks per run",
-                min_value=0,
-                value=200,
-                help="0 = no limit"
-            )
-            batch_size = st.number_input(
-                "Embedding batch size",
-                min_value=1,
-                value=32
-            )
-            source_type = st.text_input(
-                "Source type filter (optional)",
-                placeholder="redmine_issue"
-            )
-            project_key = st.text_input(
-                "Project key filter (optional)",
-                placeholder="myproject"
-            )
-            include_failed = st.checkbox(
-                "Re-embed failed/inactive embeddings",
-                value=True
-            )
-            only_pending = st.checkbox(
-                "Only chunks with pending/failed status",
-                value=True
-            )
-            
-            config = {
-                "limit": int(limit) if limit else 0,
-                "batch_size": int(batch_size),
-                "source_type": source_type or None,
-                "project_key": project_key or None,
-                "include_failed": include_failed,
-                "only_pending": only_pending,
-            }
-        
-        elif job_type == "source_check":
-            project_id = st.text_input("Project ID (optional)", placeholder="Leave empty to check all projects")
-            
-            limit = st.number_input(
-                "Limit (optional)", 
-                min_value=0, 
-                value=0,
-                help="Maximum number of sources to check (0 = no limit)"
-            )
-            
-            config = {
-                "project_id": project_id if project_id else None,
-                "limit": limit if limit > 0 else None
-            }
-        
-        else:  # git_sync
-            repo_url = st.text_input("Repository URL")
-            branch = st.text_input("Branch", value="main")
-            file_patterns = st.text_input("File Patterns", placeholder="*.md, *.py")
-            
-            config = {
-                "repo_url": repo_url,
-                "branch": branch,
-                "file_patterns": file_patterns
-            }
-        
-        is_active = st.checkbox("Active", value=True)
-        
-        submitted = st.form_submit_button("✅ Create Job", type="primary")
-        
-        if submitted:
-            if not job_name:
-                st.error("Job name is required")
-            elif not cron_expression:
-                st.error("Cron expression is required")
-            else:
-                try:
-                    response = requests.post(
-                        f"{API_URL}/api/jobs",
-                        json={
-                            "job_name": job_name,
-                            "job_type": job_type,
-                            "cron_expression": cron_expression,
-                            "config": config,
-                            "is_active": is_active
-                        }
-                    )
-                    
-                    if response.status_code == 200:
-                        st.success("✅ Job created successfully!")
-                        st.balloons()
-                        st.rerun()
+                if cron_preset == "Every day at 2 AM":
+                    cron_expression = "0 2 * * *"
+                elif cron_preset == "Every 6 hours":
+                    cron_expression = "0 */6 * * *"
+                elif cron_preset == "Every Monday":
+                    cron_expression = "0 0 * * 1"
+
+            # ── Render form config động từ options() của job ──────────────
+            st.markdown("**Job Configuration**")
+            config = {}
+
+            for opt in selected_type.get("options", []):
+                key = opt["key"]
+                label = opt["label"] + (" *" if opt.get("required") else "")
+                help_text = opt.get("help")
+                default = opt.get("default")
+                placeholder = opt.get("placeholder", "")
+
+                if opt["type"] == "text":
+                    val = st.text_input(label, value=default or "", help=help_text, placeholder=placeholder)
+                    config[key] = val if val else None
+
+                elif opt["type"] == "number":
+                    val = st.number_input(label, value=int(default or 0), min_value=0, help=help_text)
+                    config[key] = int(val)
+
+                elif opt["type"] == "checkbox":
+                    val = st.checkbox(label, value=bool(default), help=help_text)
+                    config[key] = val
+
+                elif opt["type"] == "select":
+                    val = st.selectbox(label, options=opt.get("options", []), help=help_text)
+                    config[key] = val
+
+                elif opt["type"] == "multiselect":
+                    val = st.multiselect(label, options=opt.get("options", []), default=default or [], help=help_text)
+                    config[key] = val if val else []
+            # ─────────────────────────────────────────────────────────────
+
+            is_active = st.checkbox("Active", value=True)
+
+            submitted = st.form_submit_button("✅ Create Job", type="primary")
+
+            if submitted:
+                if not job_name:
+                    st.error("Job name is required")
+                elif not cron_expression:
+                    st.error("Cron expression is required")
+                else:
+                    # Validate required fields
+                    missing = [
+                        opt["label"]
+                        for opt in selected_type.get("options", [])
+                        if opt.get("required") and not config.get(opt["key"])
+                    ]
+                    if missing:
+                        st.error(f"Required fields missing: {', '.join(missing)}")
                     else:
-                        st.error(f"Failed to create job: {response.text}")
-                
-                except Exception as e:
-                    st.error(f"Error: {str(e)}")
+                        try:
+                            response = requests.post(
+                                f"{API_URL}/api/jobs",
+                                json={
+                                    "job_name": job_name,
+                                    "job_type": selected_name,
+                                    "cron_expression": cron_expression,
+                                    "config": config,
+                                    "is_active": is_active,
+                                }
+                            )
+                            if response.status_code == 200:
+                                st.success("✅ Job created successfully!")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to create job: {response.text}")
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
 
 # Cron helper
 with st.expander("📖 Cron Expression Guide"):
