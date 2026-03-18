@@ -127,7 +127,9 @@ class ChunkEmbeddingJob(BaseJob):
             if project_key:
                 base_query = base_query.filter(Source.project_key == project_key)
 
-        base_query = base_query.order_by(Chunk.created_at.asc())
+        # Secondary sort by Chunk.id ensures stable order when multiple rows
+        # share the same created_at — prevents skip/duplicate in offset pagination.
+        base_query = base_query.order_by(Chunk.created_at.asc(), Chunk.id.asc())
 
         logger.info(
             f"Embedding job starting (limit={limit}, batch_size={batch_size}, "
@@ -223,10 +225,11 @@ class ChunkEmbeddingJob(BaseJob):
                     result["processed"] += 1
 
                 except Exception as e:
+                    # Keep full details in log, expose only a safe message in result
                     logger.error(f"Failed to embed chunk {chunk_obj.id}: {e}", exc_info=True)
                     chunk_obj.status = "failed"
                     result["failed"] += 1
-                    result["errors"].append(f"Chunk {chunk_obj.id}: {str(e)}")
+                    result["errors"].append(f"Chunk {chunk_obj.id}: embedding failed")
 
             # Commit after every batch — keeps memory low, progress durable
             db.commit()
