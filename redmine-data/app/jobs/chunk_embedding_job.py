@@ -162,46 +162,68 @@ class ChunkEmbeddingJob(BaseJob):
             result["selected"] += len(chunk_batch)
             logger.debug(f"Fetched {len(chunk_batch)} chunks at offset {offset}")
 
-            texts = [chunk.text_content or "" for chunk in chunk_batch]
-            embeddings = embedder.embed_batch(texts, batch_size=batch_size)
+            # Filter out empty/too-short chunks before calling embed_batch to
+            # avoid wasting API quota on content that won't produce useful vectors.
+            MIN_TEXT_LEN = 50
+            valid_pairs = [
+                (chunk, chunk.text_content.strip())
+                for chunk in chunk_batch
+                if chunk.text_content and len(chunk.text_content.strip()) >= MIN_TEXT_LEN
+            ]
+            skipped = [c for c in chunk_batch if c not in {p[0] for p in valid_pairs}]
+            for chunk_obj in skipped:
+                chunk_obj.status = "failed"
+                result["failed"] += 1
+                result["errors"].append(
+                    f"Chunk {chunk_obj.id}: text too short or empty (min {MIN_TEXT_LEN} chars)"
+                )
 
-            for chunk_obj, embedding_vec in zip(chunk_batch, embeddings):
+            if not valid_pairs:
+                db.commit()
+                batch_failed = sum(1 for c in chunk_batch if c.status == "failed")
+                offset += batch_failed
+                if total_remaining > 0:
+                    total_remaining -= len(chunk_batch)
+                    if total_remaining <= 0:
+                        break
+                continue
+
+            valid_chunks, filtered_texts = zip(*valid_pairs)
+            embeddings = embedder.embed_batch(list(filtered_texts), batch_size=batch_size)
+
+            for chunk_obj, embedding_vec in zip(valid_chunks, embeddings):
+                # Use SAVEPOINT as context manager — on exception the nested
+                # transaction is rolled back automatically without touching
+                # successful chunks already staged in the outer transaction.
                 try:
-                    db.begin_nested()  # SAVEPOINT — only this chunk's changes are reverted on error
-                    
-                    if len(embedding_vec) != embedder.embedding_dim:
-                        result["failed"] += 1
-                        chunk_obj.status = "failed"
-                        result["errors"].append(
-                            f"Chunk {chunk_obj.id}: embedding dim {len(embedding_vec)} != {embedder.embedding_dim}"
-                        )
-                        continue
+                    with db.begin_nested():
+                        if len(embedding_vec) != embedder.embedding_dim:
+                            raise ValueError(
+                                f"embedding dim {len(embedding_vec)} != {embedder.embedding_dim}"
+                            )
 
-                    existing = db.query(Embedding).filter(Embedding.chunk_id == chunk_obj.id).first()
-                    if existing:
-                        db.delete(existing)
-                        db.flush()
+                        existing = db.query(Embedding).filter(Embedding.chunk_id == chunk_obj.id).first()
+                        if existing:
+                            db.delete(existing)
+                            db.flush()
 
-                    quality_score = embedder.compute_quality_score(embedding_vec)
-                    db.add(
-                        Embedding(
-                            chunk_id=chunk_obj.id,
-                            embedding=embedding_vec,
-                            model_name=embedder.model_name,
-                            quality_score=quality_score,
-                            status="active",
+                        quality_score = embedder.compute_quality_score(embedding_vec)
+                        db.add(
+                            Embedding(
+                                chunk_id=chunk_obj.id,
+                                embedding=embedding_vec,
+                                model_name=embedder.model_name,
+                                quality_score=quality_score,
+                                status="active",
+                            )
                         )
-                    )
-                    chunk_obj.status = "processed"
+                        chunk_obj.status = "processed"
+
+                    # Only count as processed after the nested block succeeds
                     result["processed"] += 1
 
                 except Exception as e:
                     logger.error(f"Failed to embed chunk {chunk_obj.id}: {e}", exc_info=True)
-                    # Rollback to SAVEPOINT only — reverts only this chunk's changes,
-                    # preserving earlier successful chunks in the batch
-                    db.rollback()
-                    # Re-apply the status update (the ORM object is still in-memory;
-                    # rollback only reverts unflushed DB ops)
                     chunk_obj.status = "failed"
                     result["failed"] += 1
                     result["errors"].append(f"Chunk {chunk_obj.id}: {str(e)}")

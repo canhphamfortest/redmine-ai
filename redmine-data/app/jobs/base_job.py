@@ -221,10 +221,12 @@ class BaseJob(ABC):
 
         cli_logger = logging.getLogger(cls.__module__)
 
-        # Sanitize sensitive fields before logging config
-        SENSITIVE_KEYS = {"repo_url", "token", "password", "api_key"}
+        # Sanitize sensitive fields before logging config.
+        # Match substrings case-insensitively so variants like access_token,
+        # gitToken, DB_PASSWORD are also masked.
+        SENSITIVE_PATTERNS = {"token", "password", "secret", "api", "key", "pwd", "repo_url"}
         sanitized_config = {
-            k: "***" if k in SENSITIVE_KEYS else v
+            k: "***" if any(p in k.lower() for p in SENSITIVE_PATTERNS) else v
             for k, v in config.items()
         }
 

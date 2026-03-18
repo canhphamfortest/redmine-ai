@@ -354,7 +354,7 @@ with tab2:
                     missing = [
                         opt["label"]
                         for opt in selected_type.get("options", [])
-                        if opt.get("required") and not config.get(opt["key"])
+                        if opt.get("required") and config.get(opt["key"], None) is None
                     ]
                     if missing:
                         st.error(f"Required fields missing: {', '.join(missing)}")
@@ -381,8 +381,15 @@ with tab2:
                             logger.error("Job creation request timed out after 10 seconds", exc_info=True)
                             st.error("Request timed out. Please try again.")
                         except Exception as e:
-                            logger.error(f"Error creating job: {str(e)}", exc_info=True)
-                            st.error(f"Error: {str(e)}")
+                            import uuid as _uuid
+                            error_ref = str(_uuid.uuid4())[:8].upper()
+                            logger.error(
+                                f"[{error_ref}] Unexpected error creating job: {str(e)}", exc_info=True
+                            )
+                            st.error(
+                                f"An unexpected error occurred while creating the job. "
+                                f"Please try again or contact support (ref: {error_ref})."
+                            )
 
 # Cron helper
 with st.expander("📖 Cron Expression Guide"):
