@@ -354,7 +354,13 @@ with tab2:
                     missing = [
                         opt["label"]
                         for opt in selected_type.get("options", [])
-                        if opt.get("required") and config.get(opt["key"], None) is None
+                        if opt.get("required") and (
+                            # text/select: None means not provided
+                            config.get(opt["key"], None) is None
+                            if opt.get("type") != "number"
+                            # number: treat 0 as missing for required fields
+                            else config.get(opt["key"], 0) == 0
+                        )
                     ]
                     if missing:
                         st.error(f"Required fields missing: {', '.join(missing)}")

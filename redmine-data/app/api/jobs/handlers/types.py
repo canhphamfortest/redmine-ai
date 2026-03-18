@@ -1,11 +1,12 @@
 """Handler trả về danh sách job types có sẵn."""
 import logging
-from fastapi import HTTPException
+from fastapi import Depends, HTTPException
+from app.auth import get_current_user
 
 logger = logging.getLogger(__name__)
 
 
-async def list_job_types():
+async def list_job_types(current_user=Depends(get_current_user)):
     """Trả về danh sách tất cả job types đã đăng ký cùng options của từng loại.
 
     Endpoint này được Streamlit UI dùng để render form tạo job động —

@@ -140,11 +140,12 @@ class ChunkEmbeddingJob(BaseJob):
         # This avoids loading all matching chunks into memory at once (OOM risk
         # when limit==0 or the dataset is large).
         #
-        # Important: after each batch we commit (which may change chunk.status),
-        # so we must NOT use a plain incrementing offset — processed rows would
-        # shift the result set and cause skips.  Instead we re-query using a
-        # cursor on Chunk.created_at + Chunk.id so already-processed rows are
-        # naturally excluded by the status / embedding filters.
+        # Strategy: offset-based pagination advanced by `batch_failed` (not
+        # batch_size) after each commit. Successfully processed chunks are
+        # excluded from the next query because their status changes to
+        # "processed" (filtered out by the status/embedding conditions).
+        # Failed chunks remain in the result set, so offset advances only by
+        # the number of failed rows to avoid skipping them on retry.
         offset = 0
         total_remaining = limit  # 0 means unlimited
 

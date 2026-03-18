@@ -84,7 +84,17 @@ class RedmineSyncJob(BaseJob):
         # Build filters dict from dot-separated keys (e.g. "filters.status" → filters["status"]).
         # JobOption stores flat keys like "filters.status" in job.config; we also
         # accept a pre-built "filters" dict for backward compatibility.
-        filters: Dict[str, Any] = dict(kwargs.get("filters") or {})
+        # Guard against legacy configs where "filters" may be stored as a non-dict
+        # iterable (list, string) — fall back to empty dict to avoid ValueError.
+        raw_filters = kwargs.get("filters")
+        if isinstance(raw_filters, dict):
+            filters: Dict[str, Any] = dict(raw_filters)
+        else:
+            if raw_filters is not None:
+                logger.warning(
+                    f"Unexpected type for 'filters' config key: {type(raw_filters).__name__}, ignoring"
+                )
+            filters: Dict[str, Any] = {}
         for key, value in kwargs.items():
             if key.startswith("filters.") and value:
                 sub_key = key[len("filters."):]
