@@ -1,9 +1,12 @@
+import logging
 import streamlit as st
 import requests
 import json
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from streamlit_app.utils.auth import require_login, show_user_header, hide_pages_based_on_auth
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(page_title="Job Scheduler", page_icon="⚙️", layout="wide")
 
@@ -234,8 +237,9 @@ with tab2:
             resp = requests.get(f"{API_URL}/api/jobs/types", timeout=5)
             if resp.status_code == 200:
                 return resp.json().get("job_types", [])
-        except Exception:
-            pass
+            logger.warning(f"GET /api/jobs/types returned HTTP {resp.status_code}: {resp.text[:200]}")
+        except Exception as e:
+            logger.error(f"Failed to fetch job types from API: {e}", exc_info=True)
         return []
 
     job_types_data = fetch_job_types()
@@ -288,12 +292,17 @@ with tab2:
                     st.session_state["cron_expression"] = _CRON_PRESETS[cron_preset]
 
             with col1:
+                # NOTE: Do NOT pass both `value=` and `key=` pointing to the
+                # same session_state key — Streamlit raises StreamlitAPIException.
+                # Instead read the current value from session_state and pass it
+                # only via `value=`; the widget result is captured in a local var.
                 cron_expression = st.text_input(
                     "Cron Expression",
                     value=st.session_state["cron_expression"],
-                    key="cron_expression",
                     help="Format: minute hour day month weekday"
                 )
+                # Keep session_state in sync when the user edits the field manually
+                st.session_state["cron_expression"] = cron_expression
 
             # ── Render form config động từ options() của job ──────────────
             st.markdown("**Job Configuration**")

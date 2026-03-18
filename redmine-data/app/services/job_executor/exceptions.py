@@ -36,8 +36,12 @@ def check_cancelled(execution_id: Optional[Union[str, UUID]], db) -> None:
     except JobCancelledException:
         raise
     except Exception:
-        logger.exception(
-            "Failed to check cancellation for execution %s",
+        # Transient DB error — log and return without raising so the job
+        # continues. Crashing the entire job because cancellation status
+        # could not be confirmed would be a behavioral regression vs the
+        # previous is_execution_cancelled() which returned False on errors.
+        logger.warning(
+            "Could not check cancellation for execution %s; continuing job",
             execution_id,
+            exc_info=True,
         )
-        raise

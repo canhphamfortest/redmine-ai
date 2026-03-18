@@ -7,6 +7,7 @@ Mỗi job type kế thừa BaseJob và khai báo:
 - options(): danh sách params job nhận vào
 - execute(): logic chính của job
 """
+import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
 from sqlalchemy.orm import Session
@@ -193,23 +194,24 @@ class BaseJob(ABC):
             original_key = key_map.get(dest_key, dest_key)
             config[original_key] = value
 
-        # Setup DB session
+        # Setup DB session and logging
         from app.database import SessionLocal
         from app.logging_config import setup_logging
         setup_logging()
 
+        cli_logger = logging.getLogger(cls.__module__)
+
         db = SessionLocal()
         try:
-            print(f"▶ Running {job.label}...")
-            print(f"  Config: {json.dumps(config, default=str, ensure_ascii=False)}")
+            cli_logger.info(f"Running {job.label} with config: {json.dumps(config, default=str, ensure_ascii=False)}")
             result = job.execute(db, execution_id=None, **config)
-            print(f"✅ Done: {json.dumps(result, default=str, ensure_ascii=False, indent=2)}")
+            cli_logger.info(f"Completed {job.label}: {json.dumps(result, default=str, ensure_ascii=False)}")
             sys.exit(0)
         except KeyboardInterrupt:
-            print("\n⚠️  Interrupted by user")
+            cli_logger.warning(f"{job.label} interrupted by user")
             sys.exit(1)
         except Exception as e:
-            print(f"❌ Failed: {e}", file=sys.stderr)
+            cli_logger.error(f"{job.label} failed: {e}", exc_info=True)
             sys.exit(2)
         finally:
             db.close()
