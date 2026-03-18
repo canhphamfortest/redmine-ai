@@ -33,7 +33,7 @@ def discover_jobs(package_name: str = "app.jobs") -> Dict[str, "BaseJob"]:
     try:
         package = importlib.import_module(package_name)
     except ImportError as e:
-        logger.error(f"Cannot import package {package_name}: {e}")
+        logger.exception(f"Cannot import package {package_name}: {e}")
         return registry
 
     package_path = getattr(package, "__path__", [])
@@ -47,7 +47,7 @@ def discover_jobs(package_name: str = "app.jobs") -> Dict[str, "BaseJob"]:
         try:
             module = importlib.import_module(full_module_name)
         except Exception as e:
-            logger.error(f"Failed to import job module {full_module_name}: {e}")
+            logger.exception(f"Failed to import job module {full_module_name}: {e}")
             continue
 
         # Tìm tất cả BaseJob subclasses trong module

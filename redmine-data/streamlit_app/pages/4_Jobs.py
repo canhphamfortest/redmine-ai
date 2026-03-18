@@ -25,6 +25,18 @@ API_URL = "http://backend:8000"
 import os
 LOCAL_TZ = ZoneInfo(os.getenv("SCHEDULER_TIMEZONE", "Asia/Ho_Chi_Minh"))
 
+# Fetch job types từ API (render form động — không hardcode)
+@st.cache_data(ttl=60)
+def fetch_job_types():
+    try:
+        resp = requests.get(f"{API_URL}/api/jobs/types", timeout=5)
+        if resp.status_code == 200:
+            return resp.json().get("job_types", [])
+        logger.warning(f"GET /api/jobs/types returned HTTP {resp.status_code}: {resp.text[:200]}")
+    except Exception as e:
+        logger.error(f"Failed to fetch job types from API: {e}", exc_info=True)
+    return []
+
 def utc_to_local(utc_dt_str: str) -> datetime:
     """Convert UTC datetime string sang local timezone datetime."""
     if not utc_dt_str:
@@ -230,18 +242,6 @@ with tab1:
 with tab2:
     st.subheader("Create New Job")
 
-    # Fetch job types từ API (render form động — không hardcode)
-    @st.cache_data(ttl=60)
-    def fetch_job_types():
-        try:
-            resp = requests.get(f"{API_URL}/api/jobs/types", timeout=5)
-            if resp.status_code == 200:
-                return resp.json().get("job_types", [])
-            logger.warning(f"GET /api/jobs/types returned HTTP {resp.status_code}: {resp.text[:200]}")
-        except Exception as e:
-            logger.error(f"Failed to fetch job types from API: {e}", exc_info=True)
-        return []
-
     job_types_data = fetch_job_types()
 
     if not job_types_data:
@@ -320,7 +320,11 @@ with tab2:
                     config[key] = val if val else None
 
                 elif opt["type"] == "number":
-                    val = st.number_input(label, value=int(default or 0), min_value=0, help=help_text)
+                    try:
+                        safe_default = int(default) if default is not None else 0
+                    except (TypeError, ValueError):
+                        safe_default = 0
+                    val = st.number_input(label, value=safe_default, min_value=0, help=help_text)
                     config[key] = int(val)
 
                 elif opt["type"] == "checkbox":
@@ -364,7 +368,8 @@ with tab2:
                                     "cron_expression": cron_expression,
                                     "config": config,
                                     "is_active": is_active,
-                                }
+                                },
+                                timeout=10
                             )
                             if response.status_code == 200:
                                 st.success("✅ Job created successfully!")
@@ -372,7 +377,11 @@ with tab2:
                                 st.rerun()
                             else:
                                 st.error(f"Failed to create job: {response.text}")
+                        except requests.exceptions.Timeout:
+                            logger.error("Job creation request timed out after 10 seconds", exc_info=True)
+                            st.error("Request timed out. Please try again.")
                         except Exception as e:
+                            logger.error(f"Error creating job: {str(e)}", exc_info=True)
                             st.error(f"Error: {str(e)}")
 
 # Cron helper

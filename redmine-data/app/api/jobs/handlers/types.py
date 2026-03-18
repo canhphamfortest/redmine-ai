@@ -25,5 +25,8 @@ async def list_job_types():
         }
 
     except Exception as e:
-        logger.error(f"Failed to list job types: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("Failed to list job types")
+        raise HTTPException(
+            status_code=500, 
+            detail="Internal server error while loading job types"
+        ) from e

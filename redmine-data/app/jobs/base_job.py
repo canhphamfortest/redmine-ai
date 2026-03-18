@@ -165,22 +165,42 @@ class BaseJob(ABC):
         )
 
         # Build argparse args từ options()
-        _BOOL_TRUE = {"true", "1", "yes"}
+        def parse_checkbox(v: str) -> bool:
+            """Strictly parse checkbox values."""
+            v_lower = v.lower()
+            if v_lower in ("true", "1", "yes"):
+                return True
+            elif v_lower in ("false", "0", "no"):
+                return False
+            else:
+                raise argparse.ArgumentTypeError(
+                    f"Invalid boolean value: '{v}'. Must be one of: true, false, 1, 0, yes, no"
+                )
+
         for opt in opts:
             kwargs: Dict[str, Any] = {
                 "dest": opt.key.replace(".", "_"),   # "filters.status" → "filters_status"
                 "help": opt.help or "",
                 "default": opt.default,
-                "required": False,                    # CLI luôn optional (có default)
+                "required": opt.required,            # Honor opt.required instead of hardcoded False
             }
             if opt.type == "checkbox":
-                kwargs["type"] = lambda v: v.lower() in _BOOL_TRUE
+                kwargs["type"] = parse_checkbox
                 kwargs["metavar"] = "true|false"
             elif opt.type == "number":
                 kwargs["type"] = int
-            elif opt.type in ("multiselect",):
-                kwargs["nargs"] = "*"
-            else:
+            elif opt.type == "multiselect":
+                # Use '+' if required, '*' if optional
+                kwargs["nargs"] = "+" if opt.required else "*"
+            elif opt.type == "select":
+                # Honor opt.options as choices if present
+                if opt.options:
+                    kwargs["choices"] = opt.options
+                kwargs["type"] = str
+            else:  # text and others
+                # Honor opt.options as choices if present
+                if opt.options:
+                    kwargs["choices"] = opt.options
                 kwargs["type"] = str
 
             parser.add_argument(f"--{opt.key.replace('.', '_')}", **kwargs)
@@ -201,11 +221,21 @@ class BaseJob(ABC):
 
         cli_logger = logging.getLogger(cls.__module__)
 
+        # Sanitize sensitive fields before logging config
+        SENSITIVE_KEYS = {"repo_url", "token", "password", "api_key"}
+        sanitized_config = {
+            k: "***" if k in SENSITIVE_KEYS else v
+            for k, v in config.items()
+        }
+
         db = SessionLocal()
         try:
-            cli_logger.info(f"Running {job.label} with config: {json.dumps(config, default=str, ensure_ascii=False)}")
+            cli_logger.info(f"Running {job.label} with config: {json.dumps(sanitized_config, default=str, ensure_ascii=False)}")
             result = job.execute(db, execution_id=None, **config)
-            cli_logger.info(f"Completed {job.label}: {json.dumps(result, default=str, ensure_ascii=False)}")
+            cli_logger.info(f"Completed {job.label}")
+            # Write result JSON directly to stdout for machine-readable output
+            sys.stdout.write(json.dumps(result, default=str, ensure_ascii=False) + "\n")
+            sys.stdout.flush()
             sys.exit(0)
         except KeyboardInterrupt:
             cli_logger.warning(f"{job.label} interrupted by user")

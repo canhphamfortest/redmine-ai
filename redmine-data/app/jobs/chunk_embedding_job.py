@@ -167,6 +167,8 @@ class ChunkEmbeddingJob(BaseJob):
 
             for chunk_obj, embedding_vec in zip(chunk_batch, embeddings):
                 try:
+                    db.begin_nested()  # SAVEPOINT — only this chunk's changes are reverted on error
+                    
                     if len(embedding_vec) != embedder.embedding_dim:
                         result["failed"] += 1
                         chunk_obj.status = "failed"
@@ -195,12 +197,11 @@ class ChunkEmbeddingJob(BaseJob):
 
                 except Exception as e:
                     logger.error(f"Failed to embed chunk {chunk_obj.id}: {e}", exc_info=True)
-                    # Rollback first — session may be in error state after a
-                    # failed db.flush()/db.add(); without this db.commit() at
-                    # the end of the batch raises PendingRollbackError.
+                    # Rollback to SAVEPOINT only — reverts only this chunk's changes,
+                    # preserving earlier successful chunks in the batch
                     db.rollback()
-                    # Re-apply the status update after rollback (the ORM object
-                    # is still in-memory; rollback only reverts unflushed DB ops)
+                    # Re-apply the status update (the ORM object is still in-memory;
+                    # rollback only reverts unflushed DB ops)
                     chunk_obj.status = "failed"
                     result["failed"] += 1
                     result["errors"].append(f"Chunk {chunk_obj.id}: {str(e)}")
