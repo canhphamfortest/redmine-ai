@@ -1,7 +1,10 @@
 """Job đồng bộ issues và wiki từ Redmine project."""
+import logging
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.jobs.base_job import BaseJob, JobOption
 from app.services.redmine import RedmineSync

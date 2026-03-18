@@ -191,7 +191,19 @@ class ChunkEmbeddingJob(BaseJob):
                 continue
 
             valid_chunks, filtered_texts = zip(*valid_pairs)
-            embeddings = embedder.embed_batch(list(filtered_texts), batch_size=batch_size)
+            try:
+                embeddings = embedder.embed_batch(list(filtered_texts), batch_size=batch_size)
+            except Exception as e:
+                # embed_batch failed for the entire batch — mark all valid chunks
+                # as failed, commit (so skipped chunks are also persisted), then
+                # re-raise to stop the job rather than silently skipping.
+                logger.error(f"embed_batch failed for batch at offset {offset}: {e}", exc_info=True)
+                for chunk_obj in valid_chunks:
+                    chunk_obj.status = "failed"
+                    result["failed"] += 1
+                    result["errors"].append(f"Chunk {chunk_obj.id}: embedding failed")
+                db.commit()
+                raise
 
             for chunk_obj, embedding_vec in zip(valid_chunks, embeddings):
                 # Use SAVEPOINT as context manager — on exception the nested
@@ -231,14 +243,16 @@ class ChunkEmbeddingJob(BaseJob):
                     result["failed"] += 1
                     result["errors"].append(f"Chunk {chunk_obj.id}: embedding failed")
 
+            # Compute batch_failed BEFORE commit to avoid N lazy-load queries
+            # that SQLAlchemy would trigger after the session is flushed/expired.
+            batch_failed = sum(1 for c in chunk_batch if c.status == "failed")
+
             # Commit after every batch — keeps memory low, progress durable
             db.commit()
 
             # After commit, successfully processed chunks change status and are
             # excluded from base_query on the next iteration; failed ones stay
             # (status still "failed") and would re-appear at the same offset.
-            # Advance offset only by the number of failed chunks to avoid skips.
-            batch_failed = sum(1 for c in chunk_batch if c.status == "failed")
             offset += batch_failed
 
             # Stop if we've hit the overall limit
