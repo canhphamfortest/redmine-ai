@@ -1,6 +1,6 @@
 # Code Review Checklist
 
-Checklist này được CodeRabbit sử dụng làm coding guideline khi review PR.
+Checklist này được sử dụng làm coding guideline khi review PR.
 Áp dụng cho toàn bộ project: **redmine-data** (Python/FastAPI) và **redmine-assistant** (Ruby/Redmine Plugin).
 
 ---

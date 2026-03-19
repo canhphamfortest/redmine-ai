@@ -15,12 +15,14 @@ from app.api.jobs.handlers import (
     delete_job,
     run_job_now,
     get_job_history,
-    cancel_execution
+    cancel_execution,
+    list_job_types,
 )
 
 router = APIRouter()
 
 # Đăng ký endpoints
+router.add_api_route("/types", list_job_types, methods=["GET"])          # Phải trước /{job_id}
 router.add_api_route("/", list_jobs, methods=["GET"])
 router.add_api_route("/", create_job, methods=["POST"])
 router.add_api_route("/{job_id}", get_job, methods=["GET"])
